@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import os
+
+cwd = os.getcwd()  # Get the current working directory (cwd)
+files = os.listdir(cwd)  # Get all the files in that directory
+print("Files in %r: %s" % (cwd, files))
 
 #hyperparameters
 batch_size = 32 # how many independent sequences will we process in parallel?
@@ -10,6 +15,7 @@ eval_interval=300
 learning_rate = 1e-2
 device='cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters=200
+n_embd=32
 #--------------------------------------------------
 
 torch.manual_seed(1337)
@@ -59,14 +65,20 @@ def estimate_loss():
 # super simple bigram model
 class BigramLanguageModel(nn.Module):
     
-    def __init__(self, vocab_size):
+    def __init__(self):
         super().__init__()
         # each token directly reads off the logits for the next token from the lookup table
-        self.token_embedding_table=nn.Embedding(vocab_size, vocab_size)
+        self.token_embedding_table=nn.Embedding(vocab_size, n_embd)
+        self.postion_embedding_table=nn.Embedding(block_size, n_embd)
+        self.lm_head=nn.Linear(n_embd, vocab_size)
         
     def forward(self, idx, targets=None):
+        B, T=idx.shape
         # idx and targets are both [batch_size, block_size] [B, T] tensor of integers
-        logits=self.token_embedding_table(idx) # [B, T, C] i. e [batch_size, block_size, vocab_size]
+        tok_emb=self.token_embedding_table(idx) # [B, T, C] i. e [batch_size, block_size, n_embd]
+        pos_emb=self.postion_embedding_table(torch.arange(T, device=device)) # [T, C]
+        x=tok_emb+pos_emb # [B, T, C]
+        logits=self.lm_head(x) # [B, T, vocab_size]
         
         if targets is None:
             loss=None
@@ -92,7 +104,7 @@ class BigramLanguageModel(nn.Module):
             idx=torch.cat((idx, idx_next), dim=1) # [B, T+1]
         return idx
     
-model=BigramLanguageModel
+model=BigramLanguageModel()
 m=model.to(device)
 
 # create a PyTorch optimizer
@@ -114,4 +126,4 @@ for iter in range(max_iters):
     
 # generate from the model
 context=torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=500[0].to_list())))
+print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
